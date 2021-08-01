@@ -217,23 +217,15 @@ class DataPipeline:
             a3mm, delmat = parsers.parse_a3m(input_fasta_str);
             
             all_msas = (a3mm,);
-            all_delmat = (delmat,)
-            if self.search_templates:            
-                jackhmmer_uniref90_result = self.jackhmmer_uniref90_runner.query(
-                        input_fasta_path)[0]
-                jackhmmer_mgnify_result = self.jackhmmer_mgnify_runner.query(
-                        input_fasta_path)[0]
-
-                uniref90_msa_as_a3m = parsers.convert_stockholm_to_a3m(
-                        jackhmmer_uniref90_result['sto'], max_sequences=self.uniref_max_hits)
-                hhsearch_result = self.hhsearch_pdb70_runner.query(uniref90_msa_as_a3m)
+            all_delmat = (delmat,);
+            if self.search_templates:
+                hhsearch_result = self.hhsearch_pdb70_runner.query(input_fasta_str)
         if self.search_templates:     
             templates_result = self.template_featurizer.get_templates(
                     query_sequence=input_sequence,
                     query_pdb_code=None,
                     query_release_date=None,
                     hits=hhsearch_hits);
-            
         else:
             template_features = {};
             for name in list(templates.TEMPLATE_FEATURES):

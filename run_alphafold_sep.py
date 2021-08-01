@@ -42,7 +42,8 @@ from alphafold.model import model
 from alphafold.relax import relax
 # Internal import (7716).
 
-
+# Alphafold with precomputed a3m.
+# usage: python run_alphafold_sep.py --a3m_path example_files/T0949.a3m_2.a3m  --model_names model_1 --output_dir example_files/results --no_templates  --preset sep --data_dir=[where you extracted weights of the model]
 
 flags.DEFINE_list('a3m_path', None, 'Paths to a3m files.')
 flags.DEFINE_string('output_dir', None, 'Path to a directory that will '
