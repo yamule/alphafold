@@ -22,17 +22,16 @@
 
 import os
 from typing import Mapping, Optional, Sequence
-
-import numpy as np
-
-# Internal import (7716).
-
+from absl import logging
 from alphafold.common import residue_constants
 from alphafold.data import parsers
 from alphafold.data import templates
 from alphafold.data.tools import hhblits
 from alphafold.data.tools import hhsearch
 from alphafold.data.tools import jackhmmer
+import numpy as np
+
+# Internal import (7716).
 
 FeatureDict = Mapping[str, np.ndarray]
 
@@ -202,6 +201,9 @@ class DataPipeline:
                 all_delmat = (uniref90_deletion_matrix,
                              bfd_deletion_matrix,
                              mgnify_deletion_matrix);
+            logging.info('Uniref90 MSA size: %d sequences.', len(uniref90_msa))
+            logging.info('BFD MSA size: %d sequences.', len(bfd_msa))
+            logging.info('MGnify MSA size: %d sequences.', len(mgnify_msa))
         else:
             
             with open(input_fasta_path) as f:
@@ -219,13 +221,17 @@ class DataPipeline:
             all_msas = (a3mm,);
             all_delmat = (delmat,);
             if self.search_templates:
-                hhsearch_result = self.hhsearch_pdb70_runner.query(input_fasta_str)
+                hhsearch_result = self.hhsearch_pdb70_runner.query(input_fasta_str);
+                hhsearch_hits = parsers.parse_hhr(hhsearch_result);
         if self.search_templates:     
             templates_result = self.template_featurizer.get_templates(
                     query_sequence=input_sequence,
                     query_pdb_code=None,
                     query_release_date=None,
                     hits=hhsearch_hits);
+            logging.info('Total number of templates (NB: this can include bad '
+                         'templates and is later filtered to top 4): %d.',
+                         templates_result.features['template_domain_names'].shape[0])
         else:
             template_features = {};
             for name in list(templates.TEMPLATE_FEATURES):
@@ -242,5 +248,7 @@ class DataPipeline:
                 msas=all_msas,
                 deletion_matrices=all_delmat)
 
+        logging.info('Final (deduplicated) MSA size: %d sequences.',
+                     msa_features['num_alignments'][0])
         return {**sequence_features, **msa_features, **templates_result.features}
 
