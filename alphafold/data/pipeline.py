@@ -107,7 +107,7 @@ class DataPipeline:
                 ):
         """Constructs a feature dict for a given FASTA file."""
         self.use_a3m = use_a3m;
-        self.search_templates = search_template;
+        self.search_templates = search_templates;
         if not use_a3m:
             self._use_small_bfd = use_small_bfd
             self.jackhmmer_uniref90_runner = jackhmmer.Jackhmmer(
@@ -212,7 +212,7 @@ class DataPipeline:
             input_description = input_descs[0]
             num_res = len(input_sequence)
             del input_seqs;
-            del input_description;
+            del input_descs;
             
             a3mm, delmat = parsers.parse_a3m(input_fasta_str);
             
@@ -227,7 +227,7 @@ class DataPipeline:
                 uniref90_msa_as_a3m = parsers.convert_stockholm_to_a3m(
                         jackhmmer_uniref90_result['sto'], max_sequences=self.uniref_max_hits)
                 hhsearch_result = self.hhsearch_pdb70_runner.query(uniref90_msa_as_a3m)
-        if self.use_templates:     
+        if self.search_templates:     
             templates_result = self.template_featurizer.get_templates(
                     query_sequence=input_sequence,
                     query_pdb_code=None,
@@ -235,10 +235,10 @@ class DataPipeline:
                     hits=hhsearch_hits);
             
         else:
-            
+            template_features = {};
             for name in list(templates.TEMPLATE_FEATURES):
                 template_features[name] = np.array([], dtype=templates.TEMPLATE_FEATURES[name]);
-            templates_result = TemplateSearchResult(
+            templates_result = templates.TemplateSearchResult(
                 features=template_features, errors=[], warnings=[]);
 
         sequence_features = make_sequence_features(

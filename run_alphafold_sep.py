@@ -94,7 +94,7 @@ flags.DEFINE_integer('random_seed', None, 'The random seed for the data '
                                          'that even if this is set, Alphafold may still not be '
                                          'deterministic, because processes like GPU inference are '
                                          'nondeterministic.')
-flags.DEFINE_boolean('no_template', False, 'Do not use templates.')
+flags.DEFINE_boolean('no_templates', False, 'Do not use templates.')
 
 FLAGS = flags.FLAGS
 
@@ -235,14 +235,23 @@ def main(argv):
     fasta_names = [pathlib.Path(p).stem for p in FLAGS.a3m_path]
     if len(fasta_names) != len(set(fasta_names)):
         raise ValueError('All FASTA paths must have a unique basename.')
-    
-    template_featurizer = templates.TemplateHitFeaturizer(
-            mmcif_dir=FLAGS.template_mmcif_dir,
-            max_template_date=FLAGS.max_template_date,
-            max_hits=MAX_TEMPLATE_HITS,
-            kalign_binary_path=FLAGS.kalign_binary_path,
-            release_dates_path=None,
-            obsolete_pdbs_path=FLAGS.obsolete_pdbs_path)
+    if not FLAGS.no_templates:
+        template_featurizer = templates.TemplateHitFeaturizer(
+                mmcif_dir=FLAGS.template_mmcif_dir,
+                max_template_date=FLAGS.max_template_date,
+                max_hits=MAX_TEMPLATE_HITS,
+                kalign_binary_path=FLAGS.kalign_binary_path,
+                release_dates_path=None,
+                obsolete_pdbs_path=FLAGS.obsolete_pdbs_path);
+    else:
+        template_featurizer = templates.TemplateHitFeaturizer(
+                mmcif_dir=FLAGS.template_mmcif_dir,
+                max_template_date=FLAGS.max_template_date,
+                max_hits=MAX_TEMPLATE_HITS,
+                kalign_binary_path=FLAGS.kalign_binary_path,
+                release_dates_path=None,
+                obsolete_pdbs_path=FLAGS.obsolete_pdbs_path,
+                dummy=True);
 
     data_pipeline = pipeline.DataPipeline(
             jackhmmer_binary_path=FLAGS.jackhmmer_binary_path,
@@ -255,7 +264,9 @@ def main(argv):
             small_bfd_database_path=FLAGS.small_bfd_database_path,
             pdb70_database_path=FLAGS.pdb70_database_path,
             template_featurizer=template_featurizer,
-            use_small_bfd=use_small_bfd)
+            use_small_bfd=use_small_bfd,
+            use_a3m=True,
+            search_templates=not FLAGS.no_templates)
 
     model_runners = {}
     for model_name in FLAGS.model_names:
@@ -282,7 +293,7 @@ def main(argv):
     logging.info('Using random seed %d for the data pipeline', random_seed)
 
     # Predict structure for each of the sequences.
-    for fasta_path, fasta_name in zip(FLAGS.fasta_paths, fasta_names):
+    for fasta_path, fasta_name in zip(FLAGS.a3m_path, fasta_names):
         predict_structure(
                 fasta_path=fasta_path,
                 fasta_name=fasta_name,
