@@ -222,6 +222,9 @@ class DataPipeline:
             'a3m', self.use_precomputed_msas)
         bfd_msa = parsers.parse_a3m(hhblits_bfd_uniclust_result['a3m'])
         all_msas = (uniref90_msa, bfd_msa, mgnify_msa);
+      logging.info('Uniref90 MSA size: %d sequences.', len(uniref90_msa))
+      logging.info('BFD MSA size: %d sequences.', len(bfd_msa))
+      logging.info('MGnify MSA size: %d sequences.', len(mgnify_msa))
     else:
       with open(input_fasta_path) as f:
         input_fasta_str = f.read()
@@ -262,13 +265,10 @@ class DataPipeline:
         num_res=num_res)
 
     msa_features = make_msa_features(msas=all_msas)
-    logging.info('Uniref90 MSA size: %d sequences.', len(uniref90_msa))
-    logging.info('BFD MSA size: %d sequences.', len(bfd_msa))
-    logging.info('MGnify MSA size: %d sequences.', len(mgnify_msa))
     logging.info('Final (deduplicated) MSA size: %d sequences.',
                  msa_features['num_alignments'][0])
 
-    if self.search_templates]
+    if self.search_templates:
       logging.info('Total number of templates (NB: this can include bad '
                   'templates and is later filtered to top 4): %d.',
                   templates_result.features['template_domain_names'].shape[0])
