@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified by yamule 
+# Modified codes (including codes in the subdirectories) are also provided under
+# Apache License, Version 2.0
+
 """Full AlphaFold protein structure prediction script with precomputed a3m."""
 # Example command:
 # python run_alphafold_sep.py --a3m_path example_files/T0949.a3m_2.a3m --model_preset sep --output_dir example_files/results_0 --no_templates --model_names model_1,model_2 --data_dir=/home/ubuntu7/data/disk0/alphafold_check/alphafold_model/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
