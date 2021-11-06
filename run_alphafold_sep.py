@@ -49,7 +49,7 @@ from alphafold.model import data
 # Internal import (7716).
 
 logging.set_verbosity(logging.INFO)
-flags.DEFINE_list('a3m_path', None, 'Paths to a3m files.')
+flags.DEFINE_list('a3m_list', None, 'Paths to a3m files. If multiple paths are provided, the run is considered as complex prediction.')
 flags.DEFINE_list('fasta_paths', None, 'Paths to FASTA files, each containing '
                   'a prediction target. Paths should be separated by commas. '
                   'All FASTA paths must have a unique basename as the '
@@ -101,12 +101,12 @@ flags.DEFINE_string('max_template_date', None, 'Maximum template release date '
 flags.DEFINE_string('obsolete_pdbs_path', None, 'Path to file containing a '
                     'mapping from obsolete PDB IDs to the PDB IDs of their '
                     'replacements.')
-flags.DEFINE_enum('db_preset', 'sep',
-                  ['full_dbs', 'reduced_dbs','sep'],
+flags.DEFINE_enum('db_preset', 'none',
+                  ['full_dbs', 'reduced_dbs','none'],
                   'Choose preset MSA database configuration - '
                   'smaller genetic database config (reduced_dbs) or '
                   'full genetic database config  (full_dbs) or'
-                  'do not check (sep)')
+                  'do not check (none)')
 flags.DEFINE_enum('model_preset', 'sep',
                   ['monomer', 'monomer_casp14', 'monomer_ptm', 'multimer','sep'],
                   'Choose preset model configuration - the monomer model, '
@@ -294,8 +294,11 @@ def main(argv):
 
   use_small_bfd = FLAGS.db_preset == 'reduced_dbs'
   run_multimer_system = 'multimer' in FLAGS.model_preset
+  
+  if FLAGS.a3m_list is not None and len(FLAGS.a3m_list) > 1:
+    run_multimer_system = True;
 
-  if not FLAGS.db_preset in ( 'sep',): 
+  if not FLAGS.db_preset in ( 'none',): 
     _check_flag('small_bfd_database_path', 'db_preset',
                 should_be_set=use_small_bfd)
     _check_flag('bfd_database_path', 'db_preset',
@@ -322,9 +325,13 @@ def main(argv):
   # Check that is_prokaryote_list has same number of elements as fasta_paths,
   # and convert to bool.
   if FLAGS.is_prokaryote_list:
-    if len(FLAGS.is_prokaryote_list) != len(FLAGS.fasta_paths):
+    if FLAGS.fasta_paths is not None and len(FLAGS.is_prokaryote_list) != len(FLAGS.fasta_paths):
       raise ValueError('--is_prokaryote_list must either be omitted or match '
                        'length of --fasta_paths.')
+    if FLAGS.a3m_list is not None len(FLAGS.is_prokaryote_list) != len(FLAGS.a3m_list):
+      raise ValueError('--is_prokaryote_list must either be omitted or match '
+                       'length of --a3m_list.')
+
     is_prokaryote_list = []
     for s in FLAGS.is_prokaryote_list:
       if s in ('true', 'false'):
