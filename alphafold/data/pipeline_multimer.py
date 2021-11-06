@@ -21,7 +21,8 @@ import dataclasses
 import json
 import os
 import tempfile
-from typing import Mapping, MutableMapping, Sequence
+import re;
+from typing import Mapping, MutableMapping, Sequence, List
 
 from absl import logging
 from alphafold.common import protein
@@ -191,9 +192,10 @@ class DataPipeline:
       use_precomputed_msas: Whether to use pre-existing MSAs; see run_alphafold.
     """
     self._monomer_data_pipeline = monomer_data_pipeline
-    self._uniprot_msa_runner = jackhmmer.Jackhmmer(
-        binary_path=jackhmmer_binary_path,
-        database_path=uniprot_database_path)
+    if not self._monomer_data_pipeline.use_a3m:
+      self._uniprot_msa_runner = jackhmmer.Jackhmmer(
+          binary_path=jackhmmer_binary_path,
+          database_path=uniprot_database_path)
     self._max_uniprot_hits = max_uniprot_hits
     self.use_precomputed_msas = use_precomputed_msas
 
@@ -256,11 +258,11 @@ class DataPipeline:
   def process(self,
               input_fasta_path: str,
               msa_output_dir: str,
-              input_a3m_path:List = [],
               is_prokaryote: bool = False) -> pipeline.FeatureDict:
     """Runs alignment tools on the input sequences and creates features."""
     
-    if not self.monomer_data_pipeline.use_a3m:
+    if not self._monomer_data_pipeline.use_a3m:
+      assert(not "," in input_fasta_path);
       with open(input_fasta_path) as f:
         input_fasta_str = f.read()
       input_seqs, input_descs = parsers.parse_fasta(input_fasta_str)
@@ -293,15 +295,16 @@ class DataPipeline:
         all_chain_features[chain_id] = chain_features
         sequence_features[fasta_chain.sequence] = chain_features
     else:
+      assert("," in input_fasta_path);
+      input_a3m_paths = re.split(",",input_fasta_path);
       input_seqs = [];
       input_descs = [];
-      for pp in list(input_a3m_path):
+      for pp in list(input_a3m_paths):
         with open(pp) as f:
           input_fasta_str = f.read()
         input_seqs_, input_descs_ = parsers.parse_fasta(input_fasta_str)
         input_seqs.append(input_seqs_[0]);
         input_descs.append(input_descs_[0]);
-        
       chain_id_map = _make_chain_id_map(sequences=input_seqs,
                                         descriptions=input_descs)
       chain_id_map_path = os.path.join(msa_output_dir, 'chain_id_map.json')
@@ -313,12 +316,12 @@ class DataPipeline:
       all_chain_features = {}
       sequence_features = {}
       is_homomer_or_monomer = len(set(input_seqs)) == 1
-      for (chain_id, fasta_chain),a3mm in zip(chain_id_map.items(),input_a3m_path):
+      for (chain_id, fasta_chain),a3mm in zip(chain_id_map.items(),input_a3m_paths):
         if fasta_chain.sequence in sequence_features:
           all_chain_features[chain_id] = copy.deepcopy(
               sequence_features[fasta_chain.sequence])
           continue
-        chain_features = self.monomer_data_pipeline(
+        chain_features = self._monomer_data_pipeline.process(
             a3mm,
             msa_output_dir=os.path.join(msa_output_dir,chain_id));
         if not is_homomer_or_monomer:
@@ -328,8 +331,6 @@ class DataPipeline:
                                                   chain_id=chain_id)
         all_chain_features[chain_id] = chain_features
         sequence_features[fasta_chain.sequence] = chain_features
-    else:
-      raise Exception("Single fasta file or multiple a3m files are expected. ");
 
     all_chain_features = add_assembly_features(all_chain_features)
 

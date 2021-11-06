@@ -18,7 +18,10 @@
 
 """Full AlphaFold protein structure prediction script with precomputed a3m."""
 # Example command:
-# python run_alphafold_sep.py --a3m_path example_files/T0949.a3m_2.a3m --model_preset sep --output_dir example_files/results_0 --no_templates --model_names model_1,model_2 --data_dir=/home/ubuntu7/data/disk0/alphafold_check/alphafold_model/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
+# Monomer prediction
+# python run_alphafold_sep.py --a3m_list example_files/T0949.a3m_2.a3m --model_preset sep --output_dir example_files/results_999_0 --no_templates --model_names model_1,model_2 --data_dir=/home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none
+# Multimer prediction
+# python run_alphafold_sep.py --a3m_list example_files/T0949.a3m_2.a3m,example_files/T0949.a3m_2.a3m --model_preset sep --output_dir example_files/results_1999 --no_templates --model_names model_1_multimer,model_2_multimer --data_dir=/home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
 
 import json
 import os
@@ -295,8 +298,10 @@ def main(argv):
   use_small_bfd = FLAGS.db_preset == 'reduced_dbs'
   run_multimer_system = 'multimer' in FLAGS.model_preset
   
-  if FLAGS.a3m_list is not None and len(FLAGS.a3m_list) > 1:
-    run_multimer_system = True;
+  if FLAGS.model_preset == 'sep':
+    for mm in list(FLAGS.model_names):
+      if "multimer" in mm:
+        run_multimer_system = True;
 
   if not FLAGS.db_preset in ( 'none',): 
     _check_flag('small_bfd_database_path', 'db_preset',
@@ -318,19 +323,24 @@ def main(argv):
     num_ensemble = 1
 
   # Check for duplicate FASTA file names.
-  fasta_names = [pathlib.Path(p).stem for p in FLAGS.a3m_path]
-  if len(fasta_names) != len(set(fasta_names)):
-    raise ValueError('All FASTA paths must have a unique basename.')
+  fasta_names = [pathlib.Path(p).stem for p in FLAGS.a3m_list]
+  if not run_multimer_system:
+    if len(fasta_names) != len(set(fasta_names)):
+      raise ValueError('All FASTA paths must have a unique basename.')
 
   # Check that is_prokaryote_list has same number of elements as fasta_paths,
   # and convert to bool.
   if FLAGS.is_prokaryote_list:
     if FLAGS.fasta_paths is not None and len(FLAGS.is_prokaryote_list) != len(FLAGS.fasta_paths):
       raise ValueError('--is_prokaryote_list must either be omitted or match '
-                       'length of --fasta_paths.')
-    if FLAGS.a3m_list is not None len(FLAGS.is_prokaryote_list) != len(FLAGS.a3m_list):
-      raise ValueError('--is_prokaryote_list must either be omitted or match '
-                       'length of --a3m_list.')
+                       'length of --fasta_paths.');
+    if run_multimer_system:
+      if FLAGS.a3m_list is not None and len(FLAGS.is_prokaryote_list) != 1:
+        raise ValueError('--is_prokaryote_list must either be omitted or 1.')
+    else:
+      if FLAGS.a3m_list is not None and len(FLAGS.is_prokaryote_list) != len(FLAGS.a3m_list):
+        raise ValueError('--is_prokaryote_list must either be omitted or match '
+                        'length of --a3m_list.')
 
     is_prokaryote_list = []
     for s in FLAGS.is_prokaryote_list:
@@ -382,7 +392,9 @@ def main(argv):
       template_featurizer=template_featurizer,
       use_small_bfd=use_small_bfd,
       use_precomputed_msas=FLAGS.use_precomputed_msas
-      ,use_a3m = True,search_templates=not FLAGS.no_templates)
+      ,use_a3m = True
+      ,search_templates=not FLAGS.no_templates
+      ,for_multimer=run_multimer_system)
 
   if run_multimer_system:
     data_pipeline = pipeline_multimer.DataPipeline(
@@ -424,12 +436,11 @@ def main(argv):
     random_seed = random.randrange(sys.maxsize // len(model_names))
   logging.info('Using random seed %d for the data pipeline', random_seed)
 
-  # Predict structure for each of the sequences.
-  for i,(fasta_path, fasta_name) in enumerate(zip(FLAGS.a3m_path, fasta_names)):
-    is_prokaryote = is_prokaryote_list[i] if run_multimer_system else None
-    fasta_name = fasta_names[i]
+  if run_multimer_system:
+    is_prokaryote = is_prokaryote_list[0]
+    fasta_name = fasta_names[0]
     predict_structure(
-        fasta_path=fasta_path,
+        fasta_path=",".join(FLAGS.a3m_list),
         fasta_name=fasta_name,
         output_dir_base=FLAGS.output_dir,
         data_pipeline=data_pipeline,
@@ -437,12 +448,27 @@ def main(argv):
         amber_relaxer=amber_relaxer,
         benchmark=FLAGS.benchmark,
         random_seed=random_seed,
-        is_prokaryote=is_prokaryote)
+        is_prokaryote=is_prokaryote);
+  else:
+  # Predict structure for each of the sequences.
+    for i,(fasta_path, fasta_name) in enumerate(zip(FLAGS.a3m_list, fasta_names)):
+      is_prokaryote = is_prokaryote_list[i] if run_multimer_system else None
+      fasta_name = fasta_names[i]
+      predict_structure(
+          fasta_path=fasta_path,
+          fasta_name=fasta_name,
+          output_dir_base=FLAGS.output_dir,
+          data_pipeline=data_pipeline,
+          model_runners=model_runners,
+          amber_relaxer=amber_relaxer,
+          benchmark=FLAGS.benchmark,
+          random_seed=random_seed,
+          is_prokaryote=is_prokaryote)
 
 
 if __name__ == '__main__':
   flags.mark_flags_as_required([
-      'a3m_path',
+      'a3m_list',
       'output_dir',
       #'model_names',
       'data_dir',

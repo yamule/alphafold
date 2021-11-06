@@ -128,11 +128,13 @@ class DataPipeline:
          uniref_max_hits: int = 10000,
          use_precomputed_msas = False,
          use_a3m:bool = False,
-         search_templates:bool = True
+         search_templates:bool = True,
+         for_multimer:bool = False
         ):
     """Constructs a feature dict for a given FASTA file."""
     self.use_a3m = use_a3m;
     self.search_templates = search_templates;
+    self.for_multimer = for_multimer;
     if not use_a3m:
       self._use_small_bfd = use_small_bfd
       self.jackhmmer_uniref90_runner = jackhmmer.Jackhmmer(
@@ -253,9 +255,26 @@ class DataPipeline:
         query_sequence=input_sequence,
         hits=pdb_template_hits)
     else:
+      num_res = len(input_sequence);
       template_features = {};
-      for name in list(templates.TEMPLATE_FEATURES):
-        template_features[name] = np.array([], dtype=templates.TEMPLATE_FEATURES[name]);
+      if self.for_multimer:
+        # Construct a default template with all zeros.
+        template_features = {
+            'template_aatype': np.zeros(
+                (1, num_res, len(residue_constants.restypes_with_x_and_gap)),
+                np.float32),
+            'template_all_atom_masks': np.zeros(
+                (1, num_res, residue_constants.atom_type_num), np.float32),
+            'template_all_atom_positions': np.zeros(
+                (1, num_res, residue_constants.atom_type_num, 3), np.float32),
+            'template_domain_names': np.array([''.encode()], dtype=np.object),
+            'template_sequence': np.array([''.encode()], dtype=np.object),
+            'template_sum_probs': np.array([0], dtype=np.float32)
+        }
+      else:
+        for name in list(templates.TEMPLATE_FEATURES):
+          template_features[name] = np.array([], dtype=templates.TEMPLATE_FEATURES[name]);
+
       templates_result = templates.TemplateSearchResult(
         features=template_features, errors=[], warnings=[]);
 
