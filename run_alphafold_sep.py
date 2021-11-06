@@ -17,11 +17,11 @@
 # Apache License, Version 2.0
 
 """Full AlphaFold protein structure prediction script with precomputed a3m."""
-# Example command:
+# Example command: (Please change --data_dir arg)
 # Monomer prediction
-# python run_alphafold_sep.py --a3m_list example_files/T0949.a3m_2.a3m --model_preset sep --output_dir example_files/results_999_0 --no_templates --model_names model_1,model_2 --data_dir=/home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none
+# python run_alphafold_sep.py --a3m_list example_files/T1065s1.a3m_5.a3m --model_preset sep --output_dir example_files/results_T1065s1 --no_templates --model_names model_1,model_2 --data_dir /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none
 # Multimer prediction
-# python run_alphafold_sep.py --a3m_list example_files/T0949.a3m_2.a3m,example_files/T0949.a3m_2.a3m --model_preset sep --output_dir example_files/results_1999 --no_templates --model_names model_1_multimer,model_2_multimer --data_dir=/home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
+# python run_alphafold_sep.py --a3m_list example_files/T1065s1.a3m_5.a3m,example_files/T1065s2.a3m_5.a3m --model_preset sep --output_dir example_files/results_H1065 --no_templates --model_names model_1_multimer,model_2_multimer --data_dir /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
 
 import json
 import os
@@ -53,18 +53,19 @@ from alphafold.model import data
 
 logging.set_verbosity(logging.INFO)
 flags.DEFINE_list('a3m_list', None, 'Paths to a3m files. If multiple paths are provided, the run is considered as complex prediction.')
-flags.DEFINE_list('fasta_paths', None, 'Paths to FASTA files, each containing '
-                  'a prediction target. Paths should be separated by commas. '
-                  'All FASTA paths must have a unique basename as the '
-                  'basename is used to name the output directories for '
-                  'each prediction.')
-flags.DEFINE_list('is_prokaryote_list', None, 'Optional for multimer system, '
-                  'not used by the single chain system. '
-                  'This list should contain a boolean for each fasta '
-                  'specifying true where the target complex is from a '
-                  'prokaryote, and false where it is not, or where the '
-                  'origin is unknown. These values determine the pairing '
-                  'method for the MSA.')
+flags.DEFINE_list(
+    'fasta_paths', None, 'Paths to FASTA files, each containing a prediction '
+    'target that will be folded one after another. If a FASTA file contains '
+    'multiple sequences, then it will be folded as a multimer. Paths should be '
+    'separated by commas. All FASTA paths must have a unique basename as the '
+    'basename is used to name the output directories for each prediction.')
+flags.DEFINE_list(
+    'is_prokaryote_list', None, 'Optional for multimer system, not used by the '
+    'single chain system. This list should contain a boolean for each fasta '
+    'specifying true where the target complex is from a prokaryote, and false '
+    'where it is not, or where the origin is unknown. These values determine '
+    'the pairing method for the MSA.')
+
 
 flags.DEFINE_string('data_dir', None, 'Path to directory of supporting data.')
 flags.DEFINE_string('output_dir', None, 'Path to a directory that will '

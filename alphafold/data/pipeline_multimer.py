@@ -244,7 +244,9 @@ class DataPipeline:
     return feats
 
   def _all_seq_msa_features_a3m(self, input_a3m_path):
-    msa = parsers.parse_a3m(input_a3m_path);
+    with open(input_a3m_path) as f:
+        input_a3m = f.read()
+    msa = parsers.parse_a3m(input_a3m);
     msa = msa.truncate(max_seqs=self._max_uniprot_hits)
     all_seq_features = pipeline.make_msa_features([msa])
     valid_feats = msa_pairing.MSA_FEATURES + (
@@ -325,7 +327,7 @@ class DataPipeline:
             a3mm,
             msa_output_dir=os.path.join(msa_output_dir,chain_id));
         if not is_homomer_or_monomer:
-          all_seq_msa_features = _all_seq_msa_features_a3m(a3mm);
+          all_seq_msa_features = self._all_seq_msa_features_a3m(a3mm);
           chain_features.update(all_seq_msa_features);
         chain_features = convert_monomer_features(chain_features,
                                                   chain_id=chain_id)
