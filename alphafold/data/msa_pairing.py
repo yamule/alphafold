@@ -506,7 +506,8 @@ def _pad_templates(chains: Sequence[pipeline.FeatureDict],
 
 def _merge_features_from_multiple_chains(
     chains: Sequence[pipeline.FeatureDict],
-    pair_msa_sequences: bool) -> pipeline.FeatureDict:
+    pair_msa_sequences: bool
+    ,is_homomer:bool = False) -> pipeline.FeatureDict:
   """Merge features from multiple chains.
 
   Args:
@@ -522,7 +523,12 @@ def _merge_features_from_multiple_chains(
     feats = [x[feature_name] for x in chains]
     feature_name_split = feature_name.split('_all_seq')[0]
     if feature_name_split in MSA_FEATURES:
-      if pair_msa_sequences or '_all_seq' in feature_name:
+      if is_homomer:
+        mergedd = np.concatenate(feats, axis=1);
+        paddedd = block_diag(
+            *feats, pad_value=MSA_PAD_VALUES[feature_name])
+        merged_example[feature_name] = np.concatenate([mergedd,paddedd], axis=-1)    
+      elif pair_msa_sequences or '_all_seq' in feature_name:
         merged_example[feature_name] = np.concatenate(feats, axis=1)
       else:
         merged_example[feature_name] = block_diag(
@@ -560,7 +566,7 @@ def _merge_homomers_dense_msa(
     chains = entity_chains[entity_id]
     grouped_chains.append(chains)
   chains = [
-      _merge_features_from_multiple_chains(chains, pair_msa_sequences=True)
+      _merge_features_from_multiple_chains(chains, pair_msa_sequences=True,is_homomer=True)
       for chains in grouped_chains]
   return chains
 
