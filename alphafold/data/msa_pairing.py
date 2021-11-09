@@ -26,6 +26,8 @@ import numpy as np
 import pandas as pd
 import scipy.linalg
 
+KEEP_UNPAIRED = False;
+
 ALPHA_ACCESSION_ID_MAP = {x: y for y, x in enumerate(string.ascii_uppercase)}
 ALPHANUM_ACCESSION_ID_MAP = {
     chr: num for num, chr in enumerate(string.ascii_uppercase + string.digits)
@@ -524,10 +526,12 @@ def _merge_features_from_multiple_chains(
     feature_name_split = feature_name.split('_all_seq')[0]
     if feature_name_split in MSA_FEATURES:
       if is_homomer:
+        # make paired & padded msa
+        # https://twitter.com/sokrypton/status/1457624003246534659
         mergedd = np.concatenate(feats, axis=1);
         paddedd = block_diag(
             *feats, pad_value=MSA_PAD_VALUES[feature_name])
-        merged_example[feature_name] = np.concatenate([mergedd,paddedd], axis=-1)    
+        merged_example[feature_name] = np.concatenate([mergedd,paddedd], axis=0)    
       elif pair_msa_sequences or '_all_seq' in feature_name:
         merged_example[feature_name] = np.concatenate(feats, axis=1)
       else:
@@ -566,7 +570,7 @@ def _merge_homomers_dense_msa(
     chains = entity_chains[entity_id]
     grouped_chains.append(chains)
   chains = [
-      _merge_features_from_multiple_chains(chains, pair_msa_sequences=True,is_homomer=True)
+      _merge_features_from_multiple_chains(chains, pair_msa_sequences=True,is_homomer=KEEP_UNPAIRED)
       for chains in grouped_chains]
   return chains
 

@@ -23,6 +23,7 @@
 # Multimer prediction (The first filename is used for the output directory name.)
 # python run_alphafold_sep.py --a3m_list example_files/T1065s2.a3m_5.a3m,example_files/T1065s1.a3m_5.a3m --model_preset sep --output_dir example_files/results_H1065 --no_templates --model_names model_1_multimer,model_2_multimer --data_dir /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
 
+
 import json
 import os
 import pathlib
@@ -46,6 +47,7 @@ from alphafold.data.tools import hmmsearch
 from alphafold.model import config
 from alphafold.model import model
 from alphafold.relax import relax
+from alphafold.data import msa_pairing;
 import numpy as np
 
 from alphafold.model import data
@@ -130,6 +132,10 @@ flags.DEFINE_boolean('use_precomputed_msas', False, 'Whether to read MSAs that '
                      'if the sequence, database or configuration have changed.')
 
 
+flags.DEFINE_boolean('keep_unpaired', False, 'Possibly avoid homo-multimer clash problem. https://twitter.com/sokrypton/status/1457639018141728770'
+'Paired sequences are created, too.'
+'Possibly unpaired sequences are filtered out by some steps which I couldn\'t follow. (yamule)'
+);
 flags.DEFINE_boolean('no_templates', False, 'Do not use templates.')
 flags.DEFINE_list('model_names', None, 'Names of models to use.')
 
@@ -317,6 +323,8 @@ def main(argv):
                 should_be_set=run_multimer_system)
     _check_flag('uniprot_database_path', 'model_preset',
                 should_be_set=run_multimer_system)
+  
+  msa_pairing.KEEP_UNPAIRED = FLAGS.keep_unpaired;
 
   if FLAGS.model_preset == 'monomer_casp14':
     num_ensemble = 8
