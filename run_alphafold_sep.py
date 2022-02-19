@@ -22,7 +22,7 @@
 # python run_alphafold_sep.py --a3m_list example_files/T1065s1.a3m_5.a3m --model_preset sep --output_dir example_files/results_T1065s1 --no_templates --model_names model_1,model_2 --data_dir /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none
 # Multimer prediction (The first filename is used for the output directory name.)
 # python run_alphafold_sep.py --a3m_list example_files/T1065s2.a3m_5.a3m,example_files/T1065s1.a3m_5.a3m --model_preset sep --output_dir example_files/results_H1065 --no_templates --model_names model_1_multimer,model_2_multimer --data_dir /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
-
+# Please change /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ to the path of the directory which you downloaded the AF2 weight files.
 
 import json
 import os
@@ -130,6 +130,16 @@ flags.DEFINE_integer('random_seed', None, 'The random seed for the data '
 flags.DEFINE_boolean('use_precomputed_msas', False, 'Whether to read MSAs that '
                      'have been written to disk. WARNING: This will not check '
                      'if the sequence, database or configuration have changed.')
+
+flags.DEFINE_boolean('run_relax', True, 'Whether to run the final relaxation '
+                     'step on the predicted models. Turning relax off might '
+                     'result in predictions with distracting stereochemical '
+                     'violations but might help in case you are having issues '
+                     'with the relaxation stage.')
+flags.DEFINE_boolean('use_gpu_relax', True, 'Whether to relax on GPU. '
+                     'Relax on GPU can be much faster than CPU, so it is '
+                     'recommended to enable if possible. GPUs must be available'
+                     ' if this setting is enabled.')
 
 
 flags.DEFINE_boolean('keep_unpaired', False, 'Possibly avoid homo-multimer clash problem. https://twitter.com/sokrypton/status/1457639018141728770'
@@ -432,13 +442,17 @@ def main(argv):
 
   logging.info('Have %d models: %s', len(model_runners),
                list(model_runners.keys()))
+  if FLAGS.run_relax:
+    amber_relaxer = relax.AmberRelaxation(
+        max_iterations=RELAX_MAX_ITERATIONS,
+        tolerance=RELAX_ENERGY_TOLERANCE,
+        stiffness=RELAX_STIFFNESS,
+        exclude_residues=RELAX_EXCLUDE_RESIDUES,
+        max_outer_iterations=RELAX_MAX_OUTER_ITERATIONS,
+        use_gpu=FLAGS.use_gpu_relax)
+  else:
+    amber_relaxer = None
 
-  amber_relaxer = relax.AmberRelaxation(
-      max_iterations=RELAX_MAX_ITERATIONS,
-      tolerance=RELAX_ENERGY_TOLERANCE,
-      stiffness=RELAX_STIFFNESS,
-      exclude_residues=RELAX_EXCLUDE_RESIDUES,
-      max_outer_iterations=RELAX_MAX_OUTER_ITERATIONS)
 
   random_seed = FLAGS.random_seed
   if random_seed is None:
