@@ -343,5 +343,13 @@ class DataPipeline:
 
     # Pad MSA to avoid zero-sized extra_msa.
     np_example = pad_msa(np_example, 512)
-
+    prev_asym = np_example['asym_id'][0]
+     
+    # something for overlapping index problem
+    indexadd = 0;
+    for ii in range(1,len(np_example['residue_index'])):
+      if prev_asym != np_example['asym_id'][ii]:
+        indexadd += 100;
+      np_example['residue_index'][ii] = ii+indexadd;
+      prev_asym =  np_example['asym_id'][ii]; 
     return np_example
