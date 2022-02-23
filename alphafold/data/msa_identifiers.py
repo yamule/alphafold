@@ -91,6 +91,12 @@ def get_identifiers(description: str) -> Identifiers:
         uniprot_accession_id=description.split()[0],
         species_id=mat.group(1));
         
+  mat = re.search(r"TaxID=([^\s]+)",description);
+  if mat :
+    return Identifiers(
+        uniprot_accession_id=description.split()[0],
+        species_id=mat.group(1));
+        
   sequence_identifier = _extract_sequence_identifier(description)
   if sequence_identifier is None:
     return Identifiers()
