@@ -179,22 +179,34 @@ def to_pdb(prot: Protein) -> str:
   pdb_lines.append('MODEL     1')
   atom_index = 1
   last_chain_index = chain_index[0]
+  
+  new_residue_index = 0;
+  prev_chain_index = -99999999999;
   # Add all atom sites.
   for i in range(aatype.shape[0]):
+    if prev_chain_index != chain_index[i]:
+      new_residue_index = 1;
+    else:
+      if i > 0 and residue_index[i]-residue_index[i-1] > 1:
+        new_residue_index += residue_index[i]-residue_index[i-1];
+      else:
+        new_residue_index += 1;
+    prev_chain_index = chain_index[i];
+    
     # Close the previous chain if in a multichain PDB.
     if last_chain_index != chain_index[i]:
       pdb_lines.append(_chain_end(
           atom_index, res_1to3(aatype[i - 1]), chain_ids[chain_index[i - 1]],
-          residue_index[i - 1]))
+          new_residue_index))
       last_chain_index = chain_index[i]
       atom_index += 1  # Atom index increases at the TER symbol.
 
     res_name_3 = res_1to3(aatype[i])
+    
     for atom_name, pos, mask, b_factor in zip(
         atom_types, atom_positions[i], atom_mask[i], b_factors[i]):
       if mask < 0.5:
         continue
-
       record_type = 'ATOM'
       name = atom_name if len(atom_name) == 4 else f' {atom_name}'
       alt_loc = ''
@@ -205,7 +217,7 @@ def to_pdb(prot: Protein) -> str:
       # PDB is a columnar format, every space matters here!
       atom_line = (f'{record_type:<6}{atom_index:>5} {name:<4}{alt_loc:>1}'
                    f'{res_name_3:>3} {chain_ids[chain_index[i]]:>1}'
-                   f'{residue_index[i]:>4}{insertion_code:>1}   '
+                   f'{new_residue_index:>4}{insertion_code:>1}   '
                    f'{pos[0]:>8.3f}{pos[1]:>8.3f}{pos[2]:>8.3f}'
                    f'{occupancy:>6.2f}{b_factor:>6.2f}          '
                    f'{element:>2}{charge:>2}')
@@ -214,7 +226,7 @@ def to_pdb(prot: Protein) -> str:
 
   # Close the final chain.
   pdb_lines.append(_chain_end(atom_index, res_1to3(aatype[-1]),
-                              chain_ids[chain_index[-1]], residue_index[-1]))
+                              chain_ids[chain_index[-1]], new_residue_index))
   pdb_lines.append('ENDMDL')
   pdb_lines.append('END')
 

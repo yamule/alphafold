@@ -346,10 +346,17 @@ class DataPipeline:
     prev_asym = np_example['asym_id'][0]
      
     # something for overlapping index problem
-    indexadd = 0;
+    currentindex = 0;
+    new_residue_index = np.zeros_like(np_example['residue_index'],dtype=np_example['residue_index'].dtype);
     for ii in range(1,len(np_example['residue_index'])):
       if prev_asym != np_example['asym_id'][ii]:
-        indexadd += 100;
-      np_example['residue_index'][ii] = ii+indexadd;
+        currentindex += 100;
+      else:
+        if np_example['residue_index'][ii] - np_example['residue_index'][ii-1] > 1:
+          currentindex += np_example['residue_index'][ii] - np_example['residue_index'][ii-1];     
+        else:
+          currentindex += 1;
+      new_residue_index[ii] = currentindex;
       prev_asym =  np_example['asym_id'][ii]; 
+    np_example['residue_index'] = new_residue_index;
     return np_example
