@@ -85,15 +85,11 @@ def get_identifiers(description: str) -> Identifiers:
   """Computes extra MSA features from the description."""
   mat = re.search(r"OX=([^\s]+)",description);
   if mat :
-    return Identifiers(
-        uniprot_accession_id=description.split()[0],
-        species_id=mat.group(1));
+    return Identifiers(species_id=mat.group(1));
         
   mat = re.search(r"TaxID=([^\s]+)",description);
   if mat :
-    return Identifiers(
-        uniprot_accession_id=description.split()[0],
-        species_id=mat.group(1));
+    return Identifiers(species_id=mat.group(1));
         
   sequence_identifier = _extract_sequence_identifier(description)
   if sequence_identifier is None:
