@@ -66,7 +66,9 @@ def pair_and_merge(
   if pair_msa_sequences:
     np_chains_list = msa_pairing.create_paired_features(
         chains=np_chains_list)
-    np_chains_list = msa_pairing.deduplicate_unpaired_sequences(np_chains_list)
+    if not msa_pairing.KEEP_UNPAIRED:
+      np_chains_list = msa_pairing.deduplicate_unpaired_sequences(np_chains_list)
+      
   np_chains_list = crop_chains(
       np_chains_list,
       msa_crop_size=MSA_CROP_SIZE,

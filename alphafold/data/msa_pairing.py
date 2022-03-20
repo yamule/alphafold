@@ -25,6 +25,8 @@ import numpy as np
 import pandas as pd
 import scipy.linalg
 
+KEEP_UNPAIRED = False;
+
 MSA_GAP_IDX = residue_constants.restypes_with_x_and_gap.index('-')
 SEQUENCE_GAP_CUTOFF = 0.5
 SEQUENCE_SIMILARITY_CUTOFF = 0.9
@@ -334,7 +336,8 @@ def _pad_templates(chains: Sequence[pipeline.FeatureDict],
 
 def _merge_features_from_multiple_chains(
     chains: Sequence[pipeline.FeatureDict],
-    pair_msa_sequences: bool) -> pipeline.FeatureDict:
+    pair_msa_sequences: bool
+    ,is_homomer:bool = False) -> pipeline.FeatureDict:
   """Merge features from multiple chains.
 
   Args:
@@ -350,7 +353,14 @@ def _merge_features_from_multiple_chains(
     feats = [x[feature_name] for x in chains]
     feature_name_split = feature_name.split('_all_seq')[0]
     if feature_name_split in MSA_FEATURES:
-      if pair_msa_sequences or '_all_seq' in feature_name:
+      if is_homomer:
+        # make paired & padded msa
+        # https://twitter.com/sokrypton/status/1457624003246534659
+        mergedd = np.concatenate(feats, axis=1);
+        paddedd = block_diag(
+            *feats, pad_value=MSA_PAD_VALUES[feature_name])
+        merged_example[feature_name] = np.concatenate([mergedd,paddedd], axis=0)    
+      elif pair_msa_sequences or '_all_seq' in feature_name:
         merged_example[feature_name] = np.concatenate(feats, axis=1)
       else:
         merged_example[feature_name] = block_diag(
@@ -388,7 +398,7 @@ def _merge_homomers_dense_msa(
     chains = entity_chains[entity_id]
     grouped_chains.append(chains)
   chains = [
-      _merge_features_from_multiple_chains(chains, pair_msa_sequences=True)
+      _merge_features_from_multiple_chains(chains, pair_msa_sequences=True,is_homomer=KEEP_UNPAIRED)
       for chains in grouped_chains]
   return chains
 

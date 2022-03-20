@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#    http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -808,9 +808,9 @@ class TemplateHitFeaturizer(abc.ABC):
       kalign_binary_path: str,
       release_dates_path: Optional[str],
       obsolete_pdbs_path: Optional[str],
-      strict_error_check: bool = False):
+      strict_error_check: bool = False,
+      dummy:bool = False):
     """Initializes the Template Search.
-
     Args:
       mmcif_dir: Path to a directory with mmCIF structures. Once a template ID
         is found by HHSearch, this directory is used to retrieve the template
@@ -832,6 +832,8 @@ class TemplateHitFeaturizer(abc.ABC):
         * If any template is a duplicate of the query.
         * Any feature computation errors.
     """
+    if dummy:
+      return;
     self._mmcif_dir = mmcif_dir
     if not glob.glob(os.path.join(self._mmcif_dir, '*.cif')):
       logging.error('Could not find CIFs in %s', self._mmcif_dir)
@@ -857,7 +859,7 @@ class TemplateHitFeaturizer(abc.ABC):
       logging.info('Using precomputed obsolete pdbs %s.', obsolete_pdbs_path)
       self._obsolete_pdbs = _parse_obsolete(obsolete_pdbs_path)
     else:
-      self._obsolete_pdbs = {}
+      self._obsolete_pdbs = {};
 
   @abc.abstractmethod
   def get_templates(
@@ -904,7 +906,7 @@ class HhsearchHitFeaturizer(TemplateHitFeaturizer):
         errors.append(result.error)
 
       # There could be an error even if there are some results, e.g. thrown by
-      # other unparsable chains in the same mmCIF file.
+      # other unparseable chains in the same mmCIF file.
       if result.warning:
         warnings.append(result.warning)
 
@@ -927,7 +929,6 @@ class HhsearchHitFeaturizer(TemplateHitFeaturizer):
 
     return TemplateSearchResult(
         features=template_features, errors=errors, warnings=warnings)
-
 
 class HmmsearchHitFeaturizer(TemplateHitFeaturizer):
   """A class for turning a3m hits from hmmsearch to template features."""

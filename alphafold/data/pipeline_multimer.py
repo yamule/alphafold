@@ -21,7 +21,8 @@ import dataclasses
 import json
 import os
 import tempfile
-from typing import Mapping, MutableMapping, Sequence
+import re;
+from typing import Mapping, MutableMapping, Sequence, List
 
 from absl import logging
 from alphafold.common import protein
@@ -167,6 +168,9 @@ def pad_msa(np_example, min_num_seq):
   return np_example
 
 
+
+
+
 class DataPipeline:
   """Runs the alignment tools and assembles the input features."""
 
@@ -188,9 +192,10 @@ class DataPipeline:
       use_precomputed_msas: Whether to use pre-existing MSAs; see run_alphafold.
     """
     self._monomer_data_pipeline = monomer_data_pipeline
-    self._uniprot_msa_runner = jackhmmer.Jackhmmer(
-        binary_path=jackhmmer_binary_path,
-        database_path=uniprot_database_path)
+    if not self._monomer_data_pipeline.use_a3m:
+      self._uniprot_msa_runner = jackhmmer.Jackhmmer(
+          binary_path=jackhmmer_binary_path,
+          database_path=uniprot_database_path)
     self._max_uniprot_hits = max_uniprot_hits
     self.use_precomputed_msas = use_precomputed_msas
 
@@ -237,41 +242,95 @@ class DataPipeline:
              if k in valid_feats}
     return feats
 
+  def _all_seq_msa_features_a3m(self, input_a3m_path):
+    with open(input_a3m_path) as f:
+        input_a3m = f.read()
+    msa = parsers.parse_a3m(input_a3m);
+    msa = msa.truncate(max_seqs=self._max_uniprot_hits)
+    all_seq_features = pipeline.make_msa_features([msa])
+    valid_feats = msa_pairing.MSA_FEATURES + (
+        'msa_uniprot_accession_identifiers',
+        'msa_species_identifiers',
+    )
+    feats = {f'{k}_all_seq': v for k, v in all_seq_features.items()
+              if k in valid_feats}
+    return feats
+
   def process(self,
               input_fasta_path: str,
               msa_output_dir: str) -> pipeline.FeatureDict:
     """Runs alignment tools on the input sequences and creates features."""
-    with open(input_fasta_path) as f:
-      input_fasta_str = f.read()
-    input_seqs, input_descs = parsers.parse_fasta(input_fasta_str)
+    
+    if not self._monomer_data_pipeline.use_a3m:
+      assert(not "," in input_fasta_path);
+      with open(input_fasta_path) as f:
+        input_fasta_str = f.read()
+      input_seqs, input_descs = parsers.parse_fasta(input_fasta_str)
 
-    chain_id_map = _make_chain_id_map(sequences=input_seqs,
-                                      descriptions=input_descs)
-    chain_id_map_path = os.path.join(msa_output_dir, 'chain_id_map.json')
-    with open(chain_id_map_path, 'w') as f:
-      chain_id_map_dict = {chain_id: dataclasses.asdict(fasta_chain)
-                           for chain_id, fasta_chain in chain_id_map.items()}
-      json.dump(chain_id_map_dict, f, indent=4, sort_keys=True)
+      chain_id_map = _make_chain_id_map(sequences=input_seqs,
+                                        descriptions=input_descs)
+      chain_id_map_path = os.path.join(msa_output_dir, 'chain_id_map.json')
+      with open(chain_id_map_path, 'w') as f:
+        chain_id_map_dict = {chain_id: dataclasses.asdict(fasta_chain)
+                            for chain_id, fasta_chain in chain_id_map.items()}
+        json.dump(chain_id_map_dict, f, indent=4, sort_keys=True)
 
-    all_chain_features = {}
-    sequence_features = {}
-    is_homomer_or_monomer = len(set(input_seqs)) == 1
-    for chain_id, fasta_chain in chain_id_map.items():
-      if fasta_chain.sequence in sequence_features:
-        all_chain_features[chain_id] = copy.deepcopy(
-            sequence_features[fasta_chain.sequence])
-        continue
-      chain_features = self._process_single_chain(
-          chain_id=chain_id,
-          sequence=fasta_chain.sequence,
-          description=fasta_chain.description,
-          msa_output_dir=msa_output_dir,
-          is_homomer_or_monomer=is_homomer_or_monomer)
+      all_chain_features = {}
+      sequence_features = {}
+      is_homomer_or_monomer = len(set(input_seqs)) == 1
+      for chain_id, fasta_chain in chain_id_map.items():
+        if fasta_chain.sequence in sequence_features:
+          all_chain_features[chain_id] = copy.deepcopy(
+              sequence_features[fasta_chain.sequence])
+          continue
+        chain_features = self._process_single_chain(
+            chain_id=chain_id,
+            sequence=fasta_chain.sequence,
+            description=fasta_chain.description,
+            msa_output_dir=msa_output_dir,
+            is_homomer_or_monomer=is_homomer_or_monomer)
 
-      chain_features = convert_monomer_features(chain_features,
-                                                chain_id=chain_id)
-      all_chain_features[chain_id] = chain_features
-      sequence_features[fasta_chain.sequence] = chain_features
+        chain_features = convert_monomer_features(chain_features,
+                                                  chain_id=chain_id)
+        all_chain_features[chain_id] = chain_features
+        sequence_features[fasta_chain.sequence] = chain_features
+    else:
+      assert("," in input_fasta_path);
+      input_a3m_paths = re.split(",",input_fasta_path);
+      input_seqs = [];
+      input_descs = [];
+      for pp in list(input_a3m_paths):
+        with open(pp) as f:
+          input_fasta_str = f.read()
+        input_seqs_, input_descs_ = parsers.parse_fasta(input_fasta_str)
+        input_seqs.append(input_seqs_[0]);
+        input_descs.append(input_descs_[0]);
+      chain_id_map = _make_chain_id_map(sequences=input_seqs,
+                                        descriptions=input_descs)
+      chain_id_map_path = os.path.join(msa_output_dir, 'chain_id_map.json')
+      with open(chain_id_map_path, 'w') as f:
+        chain_id_map_dict = {chain_id: dataclasses.asdict(fasta_chain)
+                            for chain_id, fasta_chain in chain_id_map.items()}
+        json.dump(chain_id_map_dict, f, indent=4, sort_keys=True)
+
+      all_chain_features = {}
+      sequence_features = {}
+      is_homomer_or_monomer = len(set(input_seqs)) == 1
+      for (chain_id, fasta_chain),a3mm in zip(chain_id_map.items(),input_a3m_paths):
+        if fasta_chain.sequence in sequence_features:
+          all_chain_features[chain_id] = copy.deepcopy(
+              sequence_features[fasta_chain.sequence])
+          continue
+        chain_features = self._monomer_data_pipeline.process(
+            a3mm,
+            msa_output_dir=os.path.join(msa_output_dir,chain_id));
+        if not is_homomer_or_monomer:
+          all_seq_msa_features = self._all_seq_msa_features_a3m(a3mm);
+          chain_features.update(all_seq_msa_features);
+        chain_features = convert_monomer_features(chain_features,
+                                                  chain_id=chain_id)
+        all_chain_features[chain_id] = chain_features
+        sequence_features[fasta_chain.sequence] = chain_features
 
     all_chain_features = add_assembly_features(all_chain_features)
 
@@ -280,5 +339,20 @@ class DataPipeline:
 
     # Pad MSA to avoid zero-sized extra_msa.
     np_example = pad_msa(np_example, 512)
-
+    prev_asym = np_example['asym_id'][0]
+     
+    # something for overlapping index problem
+    currentindex = 0;
+    new_residue_index = np.zeros_like(np_example['residue_index'],dtype=np_example['residue_index'].dtype);
+    for ii in range(1,len(np_example['residue_index'])):
+      if prev_asym != np_example['asym_id'][ii]:
+        currentindex += 100;
+      else:
+        if np_example['residue_index'][ii] - np_example['residue_index'][ii-1] > 1:
+          currentindex += np_example['residue_index'][ii] - np_example['residue_index'][ii-1];     
+        else:
+          currentindex += 1;
+      new_residue_index[ii] = currentindex;
+      prev_asym =  np_example['asym_id'][ii]; 
+    np_example['residue_index'] = new_residue_index;
     return np_example
