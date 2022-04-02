@@ -284,7 +284,8 @@ class AlphaFold(hk.Module):
       is_training,
       compute_loss=False,
       ensemble_representations=False,
-      return_representations=False):
+      return_representations=False,
+      save_prevs=False):
     """Run the AlphaFold model.
 
     Arguments:
@@ -309,6 +310,9 @@ class AlphaFold(hk.Module):
     impl = AlphaFoldIteration(self.config, self.global_config)
     batch_size, num_residues = batch['aatype'].shape
 
+    if save_prevs:
+      prevs = [];
+
     def get_prev(ret):
       new_prev = {
           'prev_pos':
@@ -316,6 +320,15 @@ class AlphaFold(hk.Module):
           'prev_msa_first_row': ret['representations']['msa_first_row'],
           'prev_pair': ret['representations']['pair'],
       }
+      if save_prevs:
+        pp = {
+         'pos': ret['structure_module']['final_atom_positions']
+        };
+        for kk in ['predicted_lddt', 'predicted_aligned_error',
+                    'experimentally_resolved']:
+          if kk in ret:
+            pp[kk] = ret[kk];
+        prevs.append(pp);
       return jax.tree_map(jax.lax.stop_gradient, new_prev)
 
     def do_call(prev,
@@ -384,6 +397,9 @@ class AlphaFold(hk.Module):
     ret = do_call(prev=prev, recycle_idx=num_iter)
     if compute_loss:
       ret = ret[0], [ret[1]]
+
+    if save_prevs:
+      ret['prevs'] = prevs;
 
     if not return_representations:
       del (ret[0] if compute_loss else ret)['representations']  # pytype: disable=unsupported-operands

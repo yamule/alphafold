@@ -422,7 +422,8 @@ class AlphaFold(hk.Module):
       batch,
       is_training,
       return_representations=False,
-      safe_key=None):
+      safe_key=None,
+      save_prevs=False):
 
     c = self.config
     impl = AlphaFoldIteration(c, self.global_config)
@@ -435,6 +436,9 @@ class AlphaFold(hk.Module):
     assert isinstance(batch, dict)
     num_res = batch['aatype'].shape[0]
 
+    if save_prevs:
+      prevs = [];
+
     def get_prev(ret):
       new_prev = {
           'prev_pos':
@@ -442,6 +446,15 @@ class AlphaFold(hk.Module):
           'prev_msa_first_row': ret['representations']['msa_first_row'],
           'prev_pair': ret['representations']['pair'],
       }
+      if save_prevs:
+        pp = {
+         'pos': ret['structure_module']['final_atom_positions']
+        };
+        for kk in ['predicted_lddt', 'predicted_aligned_error',
+                    'experimentally_resolved']:
+          if kk in ret:
+            pp[kk] = ret[kk];
+        prevs.append(pp);
       return jax.tree_map(jax.lax.stop_gradient, new_prev)
 
     def apply_network(prev, safe_key):
@@ -486,6 +499,9 @@ class AlphaFold(hk.Module):
 
     # Run extra iteration.
     ret = apply_network(prev=prev, safe_key=safe_key)
+    
+    if save_prevs:
+      ret['prevs'] = prevs;
 
     if not return_representations:
       del ret['representations']

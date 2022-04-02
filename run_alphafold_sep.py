@@ -142,6 +142,7 @@ flags.DEFINE_boolean('use_gpu_relax', True, 'Whether to relax on GPU. '
                      'Relax on GPU can be much faster than CPU, so it is '
                      'recommended to enable if possible. GPUs must be available'
                      ' if this setting is enabled.')
+flags.DEFINE_boolean('save_prevs', False, 'Save results of all recycling steps.')
 
 
 flags.DEFINE_boolean('keep_unpaired', False, 'Possibly avoid homo-multimer clash problem. https://twitter.com/sokrypton/status/1457639018141728770'
@@ -178,7 +179,8 @@ def predict_structure(
     model_runners: Dict[str, model.RunModel],
     amber_relaxer: relax.AmberRelaxation,
     benchmark: bool,
-    random_seed: int):
+    random_seed: int,
+    save_prevs:bool = False):
   """Predicts structure using AlphaFold for the given sequence."""
   logging.info('Predicting %s', fasta_name)
   timings = {}
@@ -218,7 +220,7 @@ def predict_structure(
 
     t_0 = time.time()
     prediction_result = model_runner.predict(processed_feature_dict,
-                                             random_seed=model_random_seed)
+                                             random_seed=model_random_seed,save_prevs=save_prevs)
     t_diff = time.time() - t_0
     timings[f'predict_and_compile_{model_name}'] = t_diff
     logging.info(
@@ -411,7 +413,7 @@ def main(argv):
       model_config.data.eval.num_ensemble = num_ensemble
     model_params = data.get_model_haiku_params(
         model_name=model_name, data_dir=FLAGS.data_dir)
-    model_runner = model.RunModel(model_config, model_params)
+    model_runner = model.RunModel(model_config, model_params,save_prevs=FLAGS.save_prevs)
     for i in range(num_predictions_per_model):
       model_runners[f'{model_name}_pred_{i}'] = model_runner
 
@@ -444,7 +446,8 @@ def main(argv):
         model_runners=model_runners,
         amber_relaxer=amber_relaxer,
         benchmark=FLAGS.benchmark,
-        random_seed=random_seed);
+        random_seed=random_seed,
+        save_prevs=FLAGS.save_prevs);
   else:
   # Predict structure for each of the sequences.
     for i,(fasta_path, fasta_name) in enumerate(zip(FLAGS.a3m_list, fasta_names)):
