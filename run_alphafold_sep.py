@@ -146,6 +146,7 @@ flags.DEFINE_boolean('use_gpu_relax', True, 'Whether to relax on GPU. '
                      'recommended to enable if possible. GPUs must be available'
                      ' if this setting is enabled.')
 flags.DEFINE_boolean('save_prevs', False, 'Save results of each recycling step.')
+flags.DEFINE_boolean('gzip_features', False, 'Treat feature pickles with gzipped.')
 
 
 flags.DEFINE_boolean('keep_unpaired', False, 'Possibly avoid homo-multimer clash problem. https://twitter.com/sokrypton/status/1457639018141728770'
@@ -183,7 +184,8 @@ def predict_structure(
     amber_relaxer: relax.AmberRelaxation,
     benchmark: bool,
     random_seed: int,
-    save_prevs:bool = False):
+    save_prevs:bool = False,
+    gzip_features:bool = False):
   """Predicts structure using AlphaFold for the given sequence."""
   logging.info('Predicting %s', fasta_name)
   timings = {}
@@ -203,8 +205,12 @@ def predict_structure(
 
   # Write out features as a pickled dictionary.
   features_output_path = os.path.join(output_dir, 'features.pkl')
-  with open(features_output_path, 'wb') as f:
-    pickle.dump(feature_dict, f, protocol=4)
+  if gzip_features:
+    with gzip.open(features_output_path+'.gz', 'wb') as f:
+      pickle.dump(feature_dict, f, protocol=4)
+  else:
+    with open(features_output_path, 'wb') as f:
+      pickle.dump(feature_dict, f, protocol=4)
 
   unrelaxed_pdbs = {}
   relaxed_pdbs = {}
@@ -268,9 +274,12 @@ def predict_structure(
         result=dummybuff,
         b_factors= np.repeat(cres['plddt'][:, None], residue_constants.atom_type_num, axis=-1),
         remove_leading_feature_dimension=not model_runner.multimer_mode);
-
-        with open(out_pkl_path,'wb') as f:
-          pickle.dump(cres,f,protocol=4);
+        if gzip_features:
+          with gzip.open(out_pkl_path+'.gz','wb') as f:
+            pickle.dump(cres,f,protocol=4);
+        else:
+          with open(out_pkl_path,'wb') as f:
+            pickle.dump(cres,f,protocol=4);
 
         with open(out_pdb_path, 'w') as f:
           f.write(protein.to_pdb(out_protein));
@@ -285,8 +294,12 @@ def predict_structure(
 
     # Save the model outputs.
     result_output_path = os.path.join(output_dir, f'result_{model_name}.pkl')
-    with open(result_output_path, 'wb') as f:
-      pickle.dump(prediction_result, f, protocol=4)
+    if gzip_features:
+      with gzip.open(result_output_path+'.gz', 'wb') as f:
+        pickle.dump(prediction_result, f, protocol=4)
+    else:
+      with open(result_output_path, 'wb') as f:
+        pickle.dump(prediction_result, f, protocol=4)
 
     # Add the predicted LDDT in the b-factor column.
     # Note that higher predicted LDDT value means higher model confidence.
@@ -490,7 +503,9 @@ def main(argv):
         amber_relaxer=amber_relaxer,
         benchmark=FLAGS.benchmark,
         random_seed=random_seed,
-        save_prevs=FLAGS.save_prevs);
+        save_prevs=FLAGS.save_prevs,
+        gzip_features=FLAGS.gzip_features
+        );
   else:
   # Predict structure for each of the sequences.
     for i,(fasta_path, fasta_name) in enumerate(zip(FLAGS.a3m_list, fasta_names)):
@@ -503,7 +518,8 @@ def main(argv):
           model_runners=model_runners,
           amber_relaxer=amber_relaxer,
           benchmark=FLAGS.benchmark,
-          random_seed=random_seed)
+          random_seed=random_seed,
+          gzip_features=FLAGS.gzip_features)
 
 
 if __name__ == '__main__':
