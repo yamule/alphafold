@@ -244,8 +244,10 @@ def predict_structure(
     ranking_confidences[model_name] = prediction_result['ranking_confidence']
 
     if model_runner.save_prevs:
+      # Save states during recycles.
       prevs = prediction_result['prevs'];
       pnum = prevs['pos'].shape[0];
+
       dummybuff = copy.deepcopy(prediction_result);
 
       for pp in range(pnum):
@@ -275,8 +277,8 @@ def predict_structure(
         
         del cres;
         del out_protein;
-
-      del prediction_result['predicted_aligned_error_breaks']
+      if 'predicted_aligned_error_breaks' in prediction_result:
+        del prediction_result['predicted_aligned_error_breaks']
       del prevs;
       del prediction_result['prevs'];
       del dummybuff;

@@ -171,8 +171,9 @@ class RunModel:
                  tree.map_structure(lambda x: x.shape, feat))
     result = self.apply(self.params, jax.random.PRNGKey(random_seed), feat)
 
-    if self.save_prevs: # The dict for ptm is overwritten.
-      result['predicted_aligned_error_breaks'] = result['predicted_aligned_error']['breaks'];
+    if self.save_prevs: # Because the dict for ptm is overwritten.
+      if 'predicted_aligned_error' in result:
+        result['predicted_aligned_error_breaks'] = result['predicted_aligned_error']['breaks'];
 
     # This block is to ensure benchmark timings are accurate. Some blocking is
     # already happening when computing get_confidence_metrics, and this ensures
