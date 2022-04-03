@@ -71,6 +71,7 @@ class RunModel:
     self.config = config
     self.params = params
     self.multimer_mode = config.model.global_config.multimer_mode
+    self.save_prevs = save_prevs;
 
     if self.multimer_mode:
       def _forward_fn(batch):
@@ -169,6 +170,9 @@ class RunModel:
     logging.info('Running predict with shape(feat) = %s',
                  tree.map_structure(lambda x: x.shape, feat))
     result = self.apply(self.params, jax.random.PRNGKey(random_seed), feat)
+
+    if self.save_prevs: # The dict for ptm is overwritten.
+      result['predicted_aligned_error_breaks'] = result['predicted_aligned_error']['breaks'];
 
     # This block is to ensure benchmark timings are accurate. Some blocking is
     # already happening when computing get_confidence_metrics, and this ensures

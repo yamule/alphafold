@@ -399,7 +399,7 @@ class AlphaFold(hk.Module):
       ret = ret[0], [ret[1]]
 
     if save_prevs:
-      ret['prevs'] = prevs;
+      (ret[0] if compute_loss else ret)['prevs'] = prevs;
 
     if not return_representations:
       del (ret[0] if compute_loss else ret)['representations']  # pytype: disable=unsupported-operands
