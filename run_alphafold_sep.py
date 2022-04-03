@@ -51,6 +51,9 @@ from alphafold.relax import relax
 from alphafold.data import msa_pairing;
 import numpy as np
 
+import gzip;
+import copy;
+
 from alphafold.model import data
 # Internal import (7716).
 
@@ -142,6 +145,8 @@ flags.DEFINE_boolean('use_gpu_relax', True, 'Whether to relax on GPU. '
                      'Relax on GPU can be much faster than CPU, so it is '
                      'recommended to enable if possible. GPUs must be available'
                      ' if this setting is enabled.')
+flags.DEFINE_boolean('save_prevs', False, 'Save results of each recycling step.')
+flags.DEFINE_boolean('gzip_features', False, 'Treat feature pickles with gzipped.')
 
 
 flags.DEFINE_boolean('keep_unpaired', False, 'Possibly avoid homo-multimer clash problem. https://twitter.com/sokrypton/status/1457639018141728770'
@@ -178,7 +183,9 @@ def predict_structure(
     model_runners: Dict[str, model.RunModel],
     amber_relaxer: relax.AmberRelaxation,
     benchmark: bool,
-    random_seed: int):
+    random_seed: int,
+    save_prevs:bool = False,
+    gzip_features:bool = False):
   """Predicts structure using AlphaFold for the given sequence."""
   logging.info('Predicting %s', fasta_name)
   timings = {}
@@ -198,8 +205,12 @@ def predict_structure(
 
   # Write out features as a pickled dictionary.
   features_output_path = os.path.join(output_dir, 'features.pkl')
-  with open(features_output_path, 'wb') as f:
-    pickle.dump(feature_dict, f, protocol=4)
+  if gzip_features:
+    with gzip.open(features_output_path+'.gz', 'wb') as f:
+      pickle.dump(feature_dict, f, protocol=4)
+  else:
+    with open(features_output_path, 'wb') as f:
+      pickle.dump(feature_dict, f, protocol=4)
 
   unrelaxed_pdbs = {}
   relaxed_pdbs = {}
@@ -238,10 +249,57 @@ def predict_structure(
     plddt = prediction_result['plddt']
     ranking_confidences[model_name] = prediction_result['ranking_confidence']
 
+    if model_runner.save_prevs:
+      # Save results of each recycling step.
+      prevs = prediction_result['prevs'];
+      pnum = prevs['pos'].shape[0];
+
+      dummybuff = copy.deepcopy(prediction_result);
+
+      for pp in range(pnum):
+        out_pdb_path = os.path.join(output_dir, f'recycling_{model_name}.{pp}.pdb');
+        out_pkl_path = os.path.join(output_dir, f'recycling_{model_name}.{pp}.metrics.pkl');
+        dummybuff['final_atom_positions'] = prevs['pos'][pp];
+        if 'predicted_aligned_error' in dummybuff:
+          dummybuff['predicted_aligned_error'] = {};
+          dummybuff['predicted_aligned_error']['logits'] = prevs['predicted_aligned_error_logits'][pp];
+          dummybuff['predicted_aligned_error']['breaks'] = dummybuff['predicted_aligned_error_breaks'];
+          dummybuff['predicted_aligned_error']['asym_id'] = processed_feature_dict['asym_id'];
+        dummybuff['predicted_lddt']['logits'] = prevs['predicted_lddt_logits'][pp];
+
+        cres = model.get_confidence_metrics(dummybuff, multimer_mode=model_runner.multimer_mode);
+
+        out_protein = protein.from_prediction(
+        features=processed_feature_dict,
+        result=dummybuff,
+        b_factors= np.repeat(cres['plddt'][:, None], residue_constants.atom_type_num, axis=-1),
+        remove_leading_feature_dimension=not model_runner.multimer_mode);
+        if gzip_features:
+          with gzip.open(out_pkl_path+'.gz','wb') as f:
+            pickle.dump(cres,f,protocol=4);
+        else:
+          with open(out_pkl_path,'wb') as f:
+            pickle.dump(cres,f,protocol=4);
+
+        with open(out_pdb_path, 'w') as f:
+          f.write(protein.to_pdb(out_protein));
+        
+        del cres;
+        del out_protein;
+      if 'predicted_aligned_error_breaks' in prediction_result:
+        del prediction_result['predicted_aligned_error_breaks']
+      del prevs;
+      del prediction_result['prevs'];
+      del dummybuff;
+
     # Save the model outputs.
     result_output_path = os.path.join(output_dir, f'result_{model_name}.pkl')
-    with open(result_output_path, 'wb') as f:
-      pickle.dump(prediction_result, f, protocol=4)
+    if gzip_features:
+      with gzip.open(result_output_path+'.gz', 'wb') as f:
+        pickle.dump(prediction_result, f, protocol=4)
+    else:
+      with open(result_output_path, 'wb') as f:
+        pickle.dump(prediction_result, f, protocol=4)
 
     # Add the predicted LDDT in the b-factor column.
     # Note that higher predicted LDDT value means higher model confidence.
@@ -411,7 +469,7 @@ def main(argv):
       model_config.data.eval.num_ensemble = num_ensemble
     model_params = data.get_model_haiku_params(
         model_name=model_name, data_dir=FLAGS.data_dir)
-    model_runner = model.RunModel(model_config, model_params)
+    model_runner = model.RunModel(model_config, model_params,save_prevs=FLAGS.save_prevs)
     for i in range(num_predictions_per_model):
       model_runners[f'{model_name}_pred_{i}'] = model_runner
 
@@ -444,7 +502,10 @@ def main(argv):
         model_runners=model_runners,
         amber_relaxer=amber_relaxer,
         benchmark=FLAGS.benchmark,
-        random_seed=random_seed);
+        random_seed=random_seed,
+        save_prevs=FLAGS.save_prevs,
+        gzip_features=FLAGS.gzip_features
+        );
   else:
   # Predict structure for each of the sequences.
     for i,(fasta_path, fasta_name) in enumerate(zip(FLAGS.a3m_list, fasta_names)):
@@ -457,7 +518,8 @@ def main(argv):
           model_runners=model_runners,
           amber_relaxer=amber_relaxer,
           benchmark=FLAGS.benchmark,
-          random_seed=random_seed)
+          random_seed=random_seed,
+          gzip_features=FLAGS.gzip_features)
 
 
 if __name__ == '__main__':

@@ -422,7 +422,8 @@ class AlphaFold(hk.Module):
       batch,
       is_training,
       return_representations=False,
-      safe_key=None):
+      safe_key=None,
+      save_prevs=False):
 
     c = self.config
     impl = AlphaFoldIteration(c, self.global_config)
@@ -474,18 +475,35 @@ class AlphaFold(hk.Module):
       else:
         # Eval mode or tests: use the maximum number of iterations.
         num_iter = c.num_recycle
+      
+      
+      prevs = {};
+      if save_prevs:
+        prevs['pos'] = np.zeros([num_iter, num_res, residue_constants.atom_type_num, 3]);
+        prevs['predicted_lddt_logits'] = np.zeros([num_iter, num_res, self.config.heads.predicted_lddt.num_bins]);
+        prevs['predicted_aligned_error_logits'] = np.zeros([num_iter, num_res, num_res, self.config.heads.predicted_aligned_error.num_bins]);
+        prevs['experimentally_resolved_logits'] = np.zeros([num_iter, num_res, residue_constants.atom_type_num]);
 
       def recycle_body(i, x):
-        del i
-        prev, safe_key = x
+        prev, prevres, safe_key = x
         safe_key1, safe_key2 = safe_key.split() if c.resample_msa_in_recycling else safe_key.duplicate()  # pylint: disable=line-too-long
         ret = apply_network(prev=prev, safe_key=safe_key2)
-        return get_prev(ret), safe_key1
+        if save_prevs:
+          prevres['pos'] = prevres['pos'].at[i,:].set(ret['structure_module']['final_atom_positions']);
+          for kk in ['predicted_lddt', 'predicted_aligned_error',
+                      'experimentally_resolved']:
+            if kk in ret:
+              prevres[kk+'_logits'] = prevres[kk+'_logits'].at[i].set(ret[kk]['logits']);
+        del i
+        return get_prev(ret), prevres, safe_key1
 
-      prev, safe_key = hk.fori_loop(0, num_iter, recycle_body, (prev, safe_key))
+      prev, prevs, safe_key = hk.fori_loop(0, num_iter, recycle_body, (prev, prevs, safe_key))
 
     # Run extra iteration.
     ret = apply_network(prev=prev, safe_key=safe_key)
+    
+    if save_prevs:
+      ret['prevs'] = prevs;
 
     if not return_representations:
       del ret['representations']

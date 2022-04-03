@@ -284,7 +284,8 @@ class AlphaFold(hk.Module):
       is_training,
       compute_loss=False,
       ensemble_representations=False,
-      return_representations=False):
+      return_representations=False,
+      save_prevs=False):
     """Run the AlphaFold model.
 
     Arguments:
@@ -309,14 +310,23 @@ class AlphaFold(hk.Module):
     impl = AlphaFoldIteration(self.config, self.global_config)
     batch_size, num_residues = batch['aatype'].shape
 
-    def get_prev(ret):
+    def get_prev(ret,i,resbuff):
       new_prev = {
           'prev_pos':
               ret['structure_module']['final_atom_positions'],
           'prev_msa_first_row': ret['representations']['msa_first_row'],
           'prev_pair': ret['representations']['pair'],
       }
-      return jax.tree_map(jax.lax.stop_gradient, new_prev)
+
+      if save_prevs:
+        resbuff['pos'] = resbuff['pos'].at[i,:].set(ret['structure_module']['final_atom_positions']);
+        for kk in ['predicted_lddt', 'predicted_aligned_error',
+                    'experimentally_resolved']:
+          if kk in ret:
+            resbuff[kk+'_logits'] = resbuff[kk+'_logits'].at[i].set(ret[kk]['logits']);
+      del i;
+
+      return jax.tree_map(jax.lax.stop_gradient, new_prev), jax.tree_map(jax.lax.stop_gradient, resbuff)
 
     def do_call(prev,
                 recycle_idx,
@@ -334,13 +344,14 @@ class AlphaFold(hk.Module):
 
       non_ensembled_batch = jax.tree_map(lambda x: x, prev)
 
-      return impl(
+      ret = impl(
           ensembled_batch=ensembled_batch,
           non_ensembled_batch=non_ensembled_batch,
           is_training=is_training,
           compute_loss=compute_loss,
           ensemble_representations=ensemble_representations)
-
+      return ret;
+    
     prev = {}
     emb_config = self.config.embeddings_and_evoformer
     if emb_config.recycle_pos:
@@ -352,6 +363,8 @@ class AlphaFold(hk.Module):
       prev['prev_pair'] = jnp.zeros(
           [num_residues, num_residues, emb_config.pair_channel])
 
+    num_res = batch['aatype'].shape[1]
+    
     if self.config.num_recycle:
       if 'num_iter_recycling' in batch:
         # Training time: num_iter_recycling is in batch.
@@ -366,24 +379,36 @@ class AlphaFold(hk.Module):
         # Eval mode or tests: use the maximum number of iterations.
         num_iter = self.config.num_recycle
 
-      body = lambda x: (x[0] + 1,  # pylint: disable=g-long-lambda
-                        get_prev(do_call(x[1], recycle_idx=x[0],
-                                         compute_loss=False)))
+      prevs = {};
+      if save_prevs:
+        prevs['pos'] = jnp.zeros([num_iter, num_res, residue_constants.atom_type_num, 3]);
+        prevs['predicted_lddt_logits'] = jnp.zeros([num_iter, num_res, self.config.heads.predicted_lddt.num_bins]);
+        prevs['predicted_aligned_error_logits'] = jnp.zeros([num_iter, num_res, num_res, self.config.heads.predicted_aligned_error.num_bins]);
+        prevs['experimentally_resolved_logits'] = jnp.zeros([num_iter, num_res, residue_constants.atom_type_num]);
+
+      def body(x):
+        ret = do_call(x[1],recycle_idx=x[0]);
+        ret = get_prev(ret,x[0],x[2]);
+        return (x[0]+1,ret[0],ret[1]);
+        
       if hk.running_init():
         # When initializing the Haiku module, run one iteration of the
         # while_loop to initialize the Haiku modules used in `body`.
-        _, prev = body((0, prev))
+        _, prev, prevs = body((0, prev, prevs))
       else:
-        _, prev = hk.while_loop(
+        _, prev, prevs = hk.while_loop(
             lambda x: x[0] < num_iter,
             body,
-            (0, prev))
+            (0, prev, prevs))
     else:
       num_iter = 0
 
     ret = do_call(prev=prev, recycle_idx=num_iter)
     if compute_loss:
       ret = ret[0], [ret[1]]
+
+    if save_prevs:
+      (ret[0] if compute_loss else ret)['prevs'] = prevs;
 
     if not return_representations:
       del (ret[0] if compute_loss else ret)['representations']  # pytype: disable=unsupported-operands

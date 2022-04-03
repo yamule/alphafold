@@ -66,17 +66,21 @@ class RunModel:
 
   def __init__(self,
                config: ml_collections.ConfigDict,
-               params: Optional[Mapping[str, Mapping[str, np.ndarray]]] = None):
+               params: Optional[Mapping[str, Mapping[str, np.ndarray]]] = None,
+               save_prevs:bool = False):
     self.config = config
     self.params = params
     self.multimer_mode = config.model.global_config.multimer_mode
+    self.save_prevs = save_prevs;
 
     if self.multimer_mode:
       def _forward_fn(batch):
         model = modules_multimer.AlphaFold(self.config.model)
         return model(
             batch,
-            is_training=False)
+            is_training=False,
+            save_prevs=save_prevs
+            )
     else:
       def _forward_fn(batch):
         model = modules.AlphaFold(self.config.model)
@@ -84,7 +88,8 @@ class RunModel:
             batch,
             is_training=False,
             compute_loss=False,
-            ensemble_representations=True)
+            ensemble_representations=True,
+            save_prevs=save_prevs)
 
     self.apply = jax.jit(hk.transform(_forward_fn).apply)
     self.init = jax.jit(hk.transform(_forward_fn).init)
@@ -148,7 +153,7 @@ class RunModel:
 
   def predict(self,
               feat: features.FeatureDict,
-              random_seed: int,
+              random_seed: int
               ) -> Mapping[str, Any]:
     """Makes a prediction by inferencing the model on the provided features.
 
@@ -165,6 +170,10 @@ class RunModel:
     logging.info('Running predict with shape(feat) = %s',
                  tree.map_structure(lambda x: x.shape, feat))
     result = self.apply(self.params, jax.random.PRNGKey(random_seed), feat)
+
+    if self.save_prevs: # Because the dict for ptm is overwritten.
+      if 'predicted_aligned_error' in result:
+        result['predicted_aligned_error_breaks'] = result['predicted_aligned_error']['breaks'];
 
     # This block is to ensure benchmark timings are accurate. Some blocking is
     # already happening when computing get_confidence_metrics, and this ensures
