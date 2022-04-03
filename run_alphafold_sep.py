@@ -145,7 +145,7 @@ flags.DEFINE_boolean('use_gpu_relax', True, 'Whether to relax on GPU. '
                      'Relax on GPU can be much faster than CPU, so it is '
                      'recommended to enable if possible. GPUs must be available'
                      ' if this setting is enabled.')
-flags.DEFINE_boolean('save_prevs', False, 'Save results of all recycling steps.')
+flags.DEFINE_boolean('save_prevs', False, 'Save results of each recycling step.')
 
 
 flags.DEFINE_boolean('keep_unpaired', False, 'Possibly avoid homo-multimer clash problem. https://twitter.com/sokrypton/status/1457639018141728770'
@@ -244,7 +244,7 @@ def predict_structure(
     ranking_confidences[model_name] = prediction_result['ranking_confidence']
 
     if model_runner.save_prevs:
-      # Save states during recycles.
+      # Save results of each recycling step.
       prevs = prediction_result['prevs'];
       pnum = prevs['pos'].shape[0];
 
