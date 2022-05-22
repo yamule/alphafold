@@ -251,7 +251,10 @@ class DataPipeline:
       
       all_msas = (a3mm,);
       if self.search_templates:
-        pdb_templates_result = self.template_searcher.query(input_fasta_str)
+        if self.template_searcher.input_format == 'sto':
+          pdb_templates_result =  self.template_searcher.query_with_hmm(self.template_searcher.hmmbuild_runner.build_profile_from_a3m(input_fasta_str));
+        else:
+          pdb_templates_result = self.template_searcher.query(input_fasta_str)
         pdb_hits_out_path = os.path.join(
             msa_output_dir, f'pdb_hits.{self.template_searcher.output_format}')
         with open(pdb_hits_out_path, 'w') as f:
