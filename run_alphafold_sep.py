@@ -260,7 +260,7 @@ def predict_structure(
       for pp in range(pnum):
         out_pdb_path = os.path.join(output_dir, f'recycling_{model_name}.{pp}.pdb');
         out_pkl_path = os.path.join(output_dir, f'recycling_{model_name}.{pp}.metrics.pkl');
-        dummybuff['final_atom_positions'] = prevs['pos'][pp];
+        dummybuff['structure_module']['final_atom_positions'] = prevs['pos'][pp];
         if 'predicted_aligned_error' in dummybuff:
           dummybuff['predicted_aligned_error'] = {};
           dummybuff['predicted_aligned_error']['logits'] = prevs['predicted_aligned_error_logits'][pp];
