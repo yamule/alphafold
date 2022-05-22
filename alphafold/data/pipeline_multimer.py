@@ -211,6 +211,7 @@ class DataPipeline:
     chain_msa_output_dir = os.path.join(msa_output_dir, chain_id)
     if not os.path.exists(chain_msa_output_dir):
       os.makedirs(chain_msa_output_dir)
+      
     with temp_fasta_file(chain_fasta_str) as chain_fasta_path:
       logging.info('Running monomer pipeline on chain %s: %s',
                    chain_id, description)
@@ -307,6 +308,12 @@ class DataPipeline:
         input_descs.append(input_descs_[0]);
       chain_id_map = _make_chain_id_map(sequences=input_seqs,
                                         descriptions=input_descs)
+                                        
+      for chain_id, fasta_chain in chain_id_map.items():
+        chain_msa_output_dir = os.path.join(msa_output_dir, chain_id)
+        if not os.path.exists(chain_msa_output_dir):
+          os.makedirs(chain_msa_output_dir)
+          
       chain_id_map_path = os.path.join(msa_output_dir, 'chain_id_map.json')
       with open(chain_id_map_path, 'w') as f:
         chain_id_map_dict = {chain_id: dataclasses.asdict(fasta_chain)

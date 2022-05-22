@@ -43,6 +43,7 @@ from alphafold.data import pipeline
 from alphafold.data import pipeline_multimer
 from alphafold.data import templates
 from alphafold.data.tools import hhsearch
+from alphafold.data.tools import hmmbuild
 from alphafold.data.tools import hmmsearch
 from alphafold.model import config
 from alphafold.model import data
