@@ -21,8 +21,8 @@
 # Monomer prediction
 # python run_alphafold_sep.py --a3m_list example_files/T1065s1.a3m_5.a3m --model_preset sep --output_dir example_files/results_T1065s1 --no_templates --model_names model_1,model_2 --data_dir /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none
 # Multimer prediction (The first filename is used for the output directory name.)
-# python run_alphafold_sep.py --a3m_list example_files/T1065s2.a3m_5.a3m,example_files/T1065s1.a3m_5.a3m --model_preset sep --output_dir example_files/results_H1065 --no_templates --model_names model_1_multimer,model_2_multimer --data_dir /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
-# Please change /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2021-10-27/ to the path of the directory which you downloaded the AF2 weight files.
+# python python run_alphafold_sep.py --a3m_list example_files/T1065s2.a3m_5.a3m,example_files/T1065s1.a3m_5.a3m --model_preset sep --output_dir example_files/results_H1065 --no_templates --model_names model_1_multimer_v3,model_2_multimer_v3 --data_dir /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2022-12-06/ --hhblits_binary_path none --hhsearch_binary_path none --hmmbuild_binary_path none --hmmsearch_binary_path none --jackhmmer_binary_path none --kalign_binary_path none 
+# Please change /home/ubuntu7/data/disk0/alphafold_check/alphafold_params_2022-12-06/ to the path of the directory which you downloaded the AF2 weight files.
 
 import json
 import os
