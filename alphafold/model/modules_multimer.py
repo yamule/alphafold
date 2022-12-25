@@ -503,7 +503,7 @@ class AlphaFold(hk.Module):
         return i+1,prev, get_prev(ret), prevres, safe_key1
 
       def recycle_cond(x):
-        i, prev, next_in, _ = x
+        i, prev, next_in, prevres, _ = x
         ca_idx = residue_constants.atom_order['CA']
         sq_diff = jnp.square(distances(prev['prev_pos'][:, ca_idx, :]) -
                              distances(next_in['prev_pos'][:, ca_idx, :]))
@@ -518,10 +518,10 @@ class AlphaFold(hk.Module):
         return less_than_max_recycles & has_exceeded_tolerance
 
       if hk.running_init():
-        num_recycles, _, prev, safe_key = recycle_body(
+        num_recycles, _, prev, prevs, safe_key = recycle_body(
             (0, prev, prev, prevs, safe_key))
       else:
-        num_recycles, _, prev, safe_key = hk.while_loop(
+        num_recycles, _, prev, prevs, safe_key = hk.while_loop(
             recycle_cond,
             recycle_body,
             (0, prev, prev, prevs, safe_key))
