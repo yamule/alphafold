@@ -12,25 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG CUDA=11.1
+ARG CUDA=11.1.1
 FROM nvidia/cuda:${CUDA}-cudnn8-runtime-ubuntu18.04
 # FROM directive resets ARGS, so we specify again (the value is retained if
 # previously set).
 ARG CUDA
 
 # Use bash to support string substitution.
-SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      build-essential \
-      cmake \
-      cuda-command-line-tools-${CUDA/./-} \
-      git \
-      hmmer \
-      kalign \
-      tzdata \
-      wget \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        build-essential \
+        cmake \
+        cuda-command-line-tools-$(cut -f1,2 -d- <<< ${CUDA//./-}) \
+        git \
+        hmmer \
+        kalign \
+        tzdata \
+        wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get autoremove -y \
+    && apt-get clean
 
 # Compile HHsuite from source.
 RUN git clone --branch v3.3.0 https://github.com/soedinglab/hh-suite.git /tmp/hh-suite \
@@ -50,26 +53,29 @@ RUN wget -q -P /tmp \
 
 # Install conda packages.
 ENV PATH="/opt/conda/bin:$PATH"
-RUN conda update -qy conda \
+RUN conda install -qy conda==4.13.0 \
     && conda install -y -c conda-forge \
       openmm=7.5.1 \
       cudatoolkit==${CUDA_VERSION} \
       pdbfixer \
       pip \
-      python=3.7
+      python=3.8 \
+      && conda clean --all --force-pkgs-dirs --yes
 
 COPY . /app/alphafold
 RUN wget -q -P /app/alphafold/alphafold/common/ \
   https://git.scicore.unibas.ch/schwede/openstructure/-/raw/7102c63615b64735c4941278d92b554ec94415f8/modules/mol/alg/src/stereo_chemical_props.txt
 
 # Install pip packages.
-RUN pip3 install --upgrade pip \
-    && pip3 install -r /app/alphafold/requirements.txt \
-    && pip3 install --upgrade jax==0.2.14 jaxlib==0.1.69+cuda${CUDA/./} -f \
-      https://storage.googleapis.com/jax-releases/jax_releases.html
+RUN pip3 install --upgrade pip --no-cache-dir \
+    && pip3 install -r /app/alphafold/requirements.txt --no-cache-dir \
+    && pip3 install --upgrade --no-cache-dir \
+      jax==0.3.25 \
+      jaxlib==0.3.25+cuda11.cudnn805 \
+      -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
 # Apply OpenMM patch.
-WORKDIR /opt/conda/lib/python3.7/site-packages
+WORKDIR /opt/conda/lib/python3.8/site-packages
 RUN patch -p0 < /app/alphafold/docker/openmm.patch
 
 # Add SETUID bit to the ldconfig binary so that non-root users can run it.
